@@ -1002,6 +1002,58 @@ func defaultRequester() Requester {
 	return c
 }
 
+func (c *Client) Impersonate(realm, userId string) error {
+
+	req, err := http.NewRequest(
+		"POST",
+		fmt.Sprintf("%s/auth/admin/realms/%s/users/%s/impersonation", c.URL, realm, userId),
+		nil,
+	)
+	if err != nil {
+		logrus.Errorf("error creating GET impersonation request", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.token))
+
+	res, err := c.requester.Do(req)
+	if err != nil {
+		logrus.Errorf("error performing GET request", err)
+	}
+
+	defer res.Body.Close()
+
+	resCookies := res.Cookies()
+
+	var authTokenValue *http.Cookie
+	for _, ce := range resCookies {
+		if strings.EqualFold(ce.Name, "KEYCLOAK_IDENTITY") {
+			authTokenValue = ce
+		}
+	}
+
+	resp, err := http.NewRequest(
+		"GET",
+		fmt.Sprintf("%s/auth/admin/realms/%s/protocol/openid-connect/auth", c.URL, realm), nil)
+	if err != nil {
+		logrus.Errorf("error creating GET prottocol/openid-connect/auth request", err)
+	}
+
+	resp.Header.Set("Content-Type", "application/json")
+	resp.Header.Add("response_mode", "fragment")
+	resp.Header.Add("reponse_type", "token")
+	resp.Header.Add("client_id", "admin-cli")
+	//resp.Header.Add("redirect_uri","?")
+	resp.AddCookie(authTokenValue)
+
+	res, err = c.requester.Do(req)
+	if err != nil {
+		logrus.Errorf("error perfoming GET prottocol/openid-connect/auth request", err)
+	}
+
+	return nil
+}
+
 //go:generate moq -out keycloakClient_moq.go . KeycloakInterface
 
 type KeycloakInterface interface {
@@ -1076,6 +1128,7 @@ type KeycloakInterface interface {
 	GetAuthenticatorConfig(configID, realmName string) (*v1alpha1.AuthenticatorConfig, error)
 	UpdateAuthenticatorConfig(authenticatorConfig *v1alpha1.AuthenticatorConfig, realmName string) error
 	DeleteAuthenticatorConfig(configID, realmName string) error
+	Impersonate(realm, userId string) error
 }
 
 //go:generate moq -out keycloakClientFactory_moq.go . KeycloakClientFactory

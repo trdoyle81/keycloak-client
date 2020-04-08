@@ -4,8 +4,9 @@
 package common
 
 import (
-	"github.com/keycloak/keycloak-operator/pkg/apis/keycloak/v1alpha1"
 	"sync"
+
+	"github.com/keycloak/keycloak-operator/pkg/apis/keycloak/v1alpha1"
 )
 
 var (
@@ -43,6 +44,7 @@ var (
 	lockKeycloakInterfaceMockGetRealm                             sync.RWMutex
 	lockKeycloakInterfaceMockGetUser                              sync.RWMutex
 	lockKeycloakInterfaceMockGetUserFederatedIdentities           sync.RWMutex
+	lockKeycloakInterfaceMockImpersonate                          sync.RWMutex
 	lockKeycloakInterfaceMockListAuthenticationExecutionsForFlow  sync.RWMutex
 	lockKeycloakInterfaceMockListAvailableGroupClientRoles        sync.RWMutex
 	lockKeycloakInterfaceMockListAvailableGroupRealmRoles         sync.RWMutex
@@ -182,6 +184,9 @@ var _ KeycloakInterface = &KeycloakInterfaceMock{}
 //             },
 //             GetUserFederatedIdentitiesFunc: func(userName string, realmName string) ([]v1alpha1.FederatedIdentity, error) {
 // 	               panic("mock out the GetUserFederatedIdentities method")
+//             },
+//             ImpersonateFunc: func(realm string, userId string) error {
+// 	               panic("mock out the Impersonate method")
 //             },
 //             ListAuthenticationExecutionsForFlowFunc: func(flowAlias string, realmName string) ([]*v1alpha1.AuthenticationExecutionInfo, error) {
 // 	               panic("mock out the ListAuthenticationExecutionsForFlow method")
@@ -369,6 +374,9 @@ type KeycloakInterfaceMock struct {
 
 	// GetUserFederatedIdentitiesFunc mocks the GetUserFederatedIdentities method.
 	GetUserFederatedIdentitiesFunc func(userName string, realmName string) ([]v1alpha1.FederatedIdentity, error)
+
+	// ImpersonateFunc mocks the Impersonate method.
+	ImpersonateFunc func(realm string, userId string) error
 
 	// ListAuthenticationExecutionsForFlowFunc mocks the ListAuthenticationExecutionsForFlow method.
 	ListAuthenticationExecutionsForFlowFunc func(flowAlias string, realmName string) ([]*v1alpha1.AuthenticationExecutionInfo, error)
@@ -717,6 +725,13 @@ type KeycloakInterfaceMock struct {
 			UserName string
 			// RealmName is the realmName argument value.
 			RealmName string
+		}
+		// Impersonate holds details about calls to the Impersonate method.
+		Impersonate []struct {
+			// Realm is the realm argument value.
+			Realm string
+			// UserId is the userId argument value.
+			UserId string
 		}
 		// ListAuthenticationExecutionsForFlow holds details about calls to the ListAuthenticationExecutionsForFlow method.
 		ListAuthenticationExecutionsForFlow []struct {
@@ -2148,6 +2163,41 @@ func (mock *KeycloakInterfaceMock) GetUserFederatedIdentitiesCalls() []struct {
 	lockKeycloakInterfaceMockGetUserFederatedIdentities.RLock()
 	calls = mock.calls.GetUserFederatedIdentities
 	lockKeycloakInterfaceMockGetUserFederatedIdentities.RUnlock()
+	return calls
+}
+
+// Impersonate calls ImpersonateFunc.
+func (mock *KeycloakInterfaceMock) Impersonate(realm string, userId string) error {
+	if mock.ImpersonateFunc == nil {
+		panic("KeycloakInterfaceMock.ImpersonateFunc: method is nil but KeycloakInterface.Impersonate was just called")
+	}
+	callInfo := struct {
+		Realm  string
+		UserId string
+	}{
+		Realm:  realm,
+		UserId: userId,
+	}
+	lockKeycloakInterfaceMockImpersonate.Lock()
+	mock.calls.Impersonate = append(mock.calls.Impersonate, callInfo)
+	lockKeycloakInterfaceMockImpersonate.Unlock()
+	return mock.ImpersonateFunc(realm, userId)
+}
+
+// ImpersonateCalls gets all the calls that were made to Impersonate.
+// Check the length with:
+//     len(mockedKeycloakInterface.ImpersonateCalls())
+func (mock *KeycloakInterfaceMock) ImpersonateCalls() []struct {
+	Realm  string
+	UserId string
+} {
+	var calls []struct {
+		Realm  string
+		UserId string
+	}
+	lockKeycloakInterfaceMockImpersonate.RLock()
+	calls = mock.calls.Impersonate
+	lockKeycloakInterfaceMockImpersonate.RUnlock()
 	return calls
 }
 
