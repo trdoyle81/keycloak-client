@@ -997,8 +997,12 @@ func (c *Client) login(user, pass string) error {
 func defaultRequester() Requester {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // nolint
+
 	}
-	c := &http.Client{Transport: transport, Timeout: time.Second * 10}
+	c := &http.Client{Transport: transport, Timeout: time.Second * 10, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+
 	return c
 }
 
@@ -1025,31 +1029,41 @@ func (c *Client) Impersonate(realm, userId string) error {
 
 	resCookies := res.Cookies()
 
-	var authTokenValue *http.Cookie
-	for _, ce := range resCookies {
-		if strings.EqualFold(ce.Name, "KEYCLOAK_IDENTITY") {
-			authTokenValue = ce
-		}
-	}
+	fmt.Println("ALL COOKIES", resCookies)
 
 	resp, err := http.NewRequest(
 		"GET",
-		fmt.Sprintf("%s/auth/admin/realms/%s/protocol/openid-connect/auth", c.URL, realm), nil)
+		fmt.Sprintf("%s/auth/admin/realms/%s/protocol/openid-connect/auth?response_mode=fragment?client_id=admin-cli", c.URL, realm), nil)
 	if err != nil {
 		logrus.Errorf("error creating GET prottocol/openid-connect/auth request", err)
 	}
 
 	resp.Header.Set("Content-Type", "application/json")
-	resp.Header.Add("response_mode", "fragment")
-	resp.Header.Add("reponse_type", "token")
-	resp.Header.Add("client_id", "admin-cli")
-	//resp.Header.Add("redirect_uri","?")
-	resp.AddCookie(authTokenValue)
+	//add cookies
+	for _, c := range resCookies {
+		resp.AddCookie(c)
+	}
 
-	res, err = c.requester.Do(req)
+	res, err = c.requester.Do(resp)
 	if err != nil {
 		logrus.Errorf("error perfoming GET prottocol/openid-connect/auth request", err)
 	}
+
+	value, _ := ioutil.ReadAll(res.Body)
+	fmt.Println("RESPONSE=>", value)
+	fmt.Println("STATUS CODE:", res.StatusCode)
+
+	headers := res.Header.Get("Location")
+
+	//var locationHeader *http.Cookie
+
+	fmt.Println("HEADERS:", headers)
+
+	// for _, ce := range respCookies {
+	// 	if strings.EqualFold(ce.Name, "KEYCLOAK_IDENTITY") {
+	// 		locationHeader = ce
+	// 	}
+	// }
 
 	return nil
 }
