@@ -1008,7 +1008,8 @@ func defaultRequester() Requester {
 
 func (c *Client) Impersonate(realm, userId string) error {
 
-	req, err := http.NewRequest(
+	//GET AUTH TOKEN
+	ImpersonationReq, err := http.NewRequest(
 		"POST",
 		fmt.Sprintf("%s/auth/admin/realms/%s/users/%s/impersonation", c.URL, realm, userId),
 		nil,
@@ -1017,53 +1018,51 @@ func (c *Client) Impersonate(realm, userId string) error {
 		logrus.Errorf("error creating GET impersonation request", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.token))
+	ImpersonationReq.Header.Set("Content-Type", "application/json")
+	ImpersonationReq.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.token))
 
-	res, err := c.requester.Do(req)
+	impersonationResp, err := c.requester.Do(ImpersonationReq)
 	if err != nil {
-		logrus.Errorf("error performing GET request", err)
+		logrus.Errorf("Error performing Immpersonation GET request", err)
 	}
 
-	defer res.Body.Close()
+	defer impersonationResp.Body.Close()
 
-	resCookies := res.Cookies()
+	impRespCookies := impersonationResp.Cookies()
 
-	fmt.Println("ALL COOKIES", resCookies)
-
-	resp, err := http.NewRequest(
+	// Obtain a token for an impersonated user - Location Header
+	keycloakAuthReq, err := http.NewRequest(
 		"GET",
 		fmt.Sprintf("%s/auth/admin/realms/%s/protocol/openid-connect/auth?response_mode=fragment?client_id=admin-cli", c.URL, realm), nil)
 	if err != nil {
 		logrus.Errorf("error creating GET prottocol/openid-connect/auth request", err)
 	}
 
-	resp.Header.Set("Content-Type", "application/json")
+	keycloakAuthReq.Header.Set("Content-Type", "application/json")
 	//add cookies
-	for _, c := range resCookies {
-		resp.AddCookie(c)
+	for _, c := range impRespCookies {
+		fmt.Println("Adding cookie to keycloak request:", c.Name)
+		keycloakAuthReq.AddCookie(c)
 	}
 
-	res, err = c.requester.Do(resp)
+	keycloakAuthResp, err := c.requester.Do(keycloakAuthReq)
 	if err != nil {
 		logrus.Errorf("error perfoming GET prottocol/openid-connect/auth request", err)
 	}
 
-	value, _ := ioutil.ReadAll(res.Body)
+	value, _ := ioutil.ReadAll(keycloakAuthResp.Body)
 	fmt.Println("RESPONSE=>", value)
-	fmt.Println("STATUS CODE:", res.StatusCode)
+	fmt.Println("STATUS CODE:", keycloakAuthResp.StatusCode)
 
-	headers := res.Header.Get("Location")
+	headers := keycloakAuthResp.Header.Get("Location")
 
-	//var locationHeader *http.Cookie
+	// Check the Re-direct/response for location Header.
+	redirectStr := impersonationResp.Header.Get("Location")
+	if redirectStr == "" {
+		fmt.Println("Keycloak Response missing Location Headher: &s", keycloakAuthResp.StatusCode)
+	}
 
 	fmt.Println("HEADERS:", headers)
-
-	// for _, ce := range respCookies {
-	// 	if strings.EqualFold(ce.Name, "KEYCLOAK_IDENTITY") {
-	// 		locationHeader = ce
-	// 	}
-	// }
 
 	return nil
 }
