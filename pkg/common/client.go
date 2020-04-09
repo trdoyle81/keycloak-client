@@ -1018,6 +1018,7 @@ func (c *Client) Impersonate(realm, userId string) error {
 		logrus.Errorf("error creating GET impersonation request", err)
 	}
 
+	//ImpersonationReq.Header.Set("Content-Type", "application/json")
 	ImpersonationReq.Header.Set("Content-Type", "application/json")
 	ImpersonationReq.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.token))
 
@@ -1026,9 +1027,32 @@ func (c *Client) Impersonate(realm, userId string) error {
 		logrus.Errorf("Error performing Immpersonation GET request", err)
 	}
 
+	fmt.Println("IMPERSONATE response:", impersonationResp.StatusCode)
+
 	defer impersonationResp.Body.Close()
 
+	//grab the cookies
 	impRespCookies := impersonationResp.Cookies()
+
+	//have a look at the response body values
+	if impersonationResp.StatusCode == http.StatusOK {
+		bodyBytes, err := ioutil.ReadAll(impersonationResp.Body)
+		if err != nil {
+			fmt.Println("ERR", impersonationResp.StatusCode)
+
+		}
+		bodyString := string(bodyBytes)
+		fmt.Println("BODY STRING ==>:", bodyString)
+
+	}
+
+	//have a look at the cookies:
+	//add cookies
+	for _, c := range impRespCookies {
+		fmt.Println("View cookie:", c.Name, c.Expires, c.Value)
+	}
+
+	//working ok
 
 	// Obtain a token for an impersonated user - Location Header
 	keycloakAuthReq, err := http.NewRequest(
